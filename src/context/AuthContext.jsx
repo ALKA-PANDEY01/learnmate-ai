@@ -120,8 +120,19 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
+  const updateUser = (updatedData) => {
+    const updatedUser = { ...user, ...updatedData };
+    setUser(updatedUser);
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
+    
+    // Also update in mock users list
+    const users = JSON.parse(localStorage.getItem(MOCK_USERS_KEY) || '[]');
+    const updatedUsers = users.map(u => u.id === user.id ? { ...u, ...updatedData } : u);
+    localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(updatedUsers));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

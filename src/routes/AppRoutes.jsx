@@ -10,6 +10,12 @@ import StudySessionPage from '../pages/StudySessionPage';
 import QuizPage from '../pages/QuizPage';
 import AIMentorPage from '../pages/AIMentorPage';
 import NotificationsPage from '../pages/NotificationsPage';
+import AnalyticsPage from '../pages/AnalyticsPage';
+import ProfilePage from '../pages/ProfilePage';
+import SettingsPage from '../pages/SettingsPage';
+import AchievementsPage from '../pages/AchievementsPage';
+import CalendarPage from '../pages/CalendarPage';
+import NotFoundPage from '../pages/NotFoundPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 
@@ -31,26 +37,7 @@ const FlashcardsPlaceholder = () => (
   </div>
 );
 
-const AnalyticsPlaceholder = () => (
-  <div className="glass-card rounded-2xl p-8 border border-border/50 text-center space-y-4">
-    <h2 className="text-2xl font-bold font-display text-foreground">Learning Analytics</h2>
-    <p className="text-sm text-muted max-w-md mx-auto">Visual reports of study duration, progress, and performance across courses, utilizing Recharts charts.</p>
-  </div>
-);
-
-const SettingsPlaceholder = () => (
-  <div className="glass-card rounded-2xl p-8 border border-border/50 text-center space-y-4">
-    <h2 className="text-2xl font-bold font-display text-foreground">Settings</h2>
-    <p className="text-sm text-muted max-w-md mx-auto">Configure your profile, notification preferences, connected tools, and AI parameters.</p>
-  </div>
-);
-
-const ProfilePlaceholder = () => (
-  <div className="glass-card rounded-2xl p-8 border border-border/50 text-center space-y-4">
-    <h2 className="text-2xl font-bold font-display text-foreground">My Profile</h2>
-    <p className="text-sm text-muted max-w-md mx-auto">Manage personal details, viewing active achievements, and updating avatar settings.</p>
-  </div>
-);
+// Placeholders for analytics, settings, and profile are removed in favor of real pages
 
 export const AppRoutes = () => {
   return (
@@ -76,15 +63,17 @@ export const AppRoutes = () => {
         <Route path="quiz" element={<QuizPage />} />
         <Route path="tutor" element={<AIMentorPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="achievements" element={<AchievementsPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="courses" element={<CoursesPlaceholder />} />
         <Route path="flashcards" element={<FlashcardsPlaceholder />} />
-        <Route path="analytics" element={<AnalyticsPlaceholder />} />
-        <Route path="settings" element={<SettingsPlaceholder />} />
-        <Route path="profile" element={<ProfilePlaceholder />} />
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 };

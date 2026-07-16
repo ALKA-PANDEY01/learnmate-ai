@@ -174,6 +174,15 @@ export const Navbar = ({ onMenuClick }) => {
                   </div>
                 ))}
               </div>
+              <div className="border-t border-border/40 mt-2 pt-2 pb-0.5 text-center">
+                <Link
+                  to="/dashboard/notifications"
+                  onClick={() => setShowNotifications(false)}
+                  className="text-[11px] font-bold text-primary hover:underline block"
+                >
+                  See all notifications
+                </Link>
+              </div>
             </div>
           )}
         </div>

@@ -11,7 +11,11 @@ import {
   ChevronRight,
   LogOut,
   GraduationCap,
-  Compass
+  Compass,
+  Clock,
+  HelpCircle,
+  Trophy,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -29,6 +33,10 @@ export const Sidebar = ({
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Learning Roadmap', path: '/dashboard/roadmap', icon: Compass },
+    { name: 'Study Session', path: '/dashboard/study', icon: Clock },
+    { name: 'Syllabus Quiz', path: '/dashboard/quiz', icon: HelpCircle },
+    { name: 'Syllabus Calendar', path: '/dashboard/calendar', icon: Calendar },
+    { name: 'Achievements', path: '/dashboard/achievements', icon: Trophy },
     { name: 'My Courses', path: '/dashboard/courses', icon: BookOpen },
     { name: 'AI Study Tutor', path: '/dashboard/tutor', icon: Sparkles },
     { name: 'Flashcards', path: '/dashboard/flashcards', icon: Layers },
