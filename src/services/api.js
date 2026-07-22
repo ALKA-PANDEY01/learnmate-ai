@@ -1,20 +1,17 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://api.learnmate.ai/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 15000,
 });
 
-// Request interceptor for API authentication headers
+// Request interceptor (left blank for cookie-based session verification)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('learnmate_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
@@ -26,7 +23,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.message || 'Something went wrong. Please try again.';
+    const message = error.response?.data?.error || error.response?.data?.message || 'Something went wrong. Please try again.';
     console.error('API Error:', message);
     return Promise.reject(new Error(message));
   }

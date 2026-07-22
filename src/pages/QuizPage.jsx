@@ -9,11 +9,14 @@ import {
   RefreshCw,
   Sparkles,
   BookOpen,
-  ArrowLeft
+  ArrowLeft,
+  AlertTriangle
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
+import { useRoadmap } from '../context/RoadmapContext';
 
 const QUESTIONS = [
   {
@@ -35,7 +38,7 @@ const QUESTIONS = [
       { key: "A", text: "To directly paint DOM nodes on screen coordinates." },
       { key: "B", text: "To enable incremental rendering by splitting reconciliations into work units." },
       { key: "C", text: "To replace CSS styling stylesheets." },
-      { key: "D", text: "To handle Axios networks request intercepts." }
+      { key: "D", text: "To handle Axios network request intercepts." }
     ],
     answer: "B",
     explanation: "React Fiber reconciler splits reconciliation work into units (fibers), allowing React to pause, reuse, or abort updates, optimizing frame rate consistency during heavy UI renders."
@@ -79,10 +82,15 @@ const QUESTIONS = [
 ];
 
 export default function QuizPage() {
+  const { roadmap, refreshRoadmap } = useRoadmap();
+  
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState({}); // mapping of question id to selected option key
+  const [answers, setAnswers] = useState({});
   const [selectedOpt, setSelectedOpt] = useState(null);
   const [isFinished, setIsFinished] = useState(false);
+  
+  const [remediated, setRemediated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentQuestion = QUESTIONS[currentIdx];
 
@@ -90,15 +98,46 @@ export default function QuizPage() {
     setSelectedOpt(key);
   };
 
-  const handleNext = () => {
-    // Save answer
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedOpt }));
+  const handleNext = async () => {
+    const updatedAnswers = { ...answers, [currentQuestion.id]: selectedOpt };
+    setAnswers(updatedAnswers);
     setSelectedOpt(null);
 
     if (currentIdx < QUESTIONS.length - 1) {
       setCurrentIdx(prev => prev + 1);
     } else {
       setIsFinished(true);
+
+      // Submit results to backend if active roadmap exists
+      if (roadmap && roadmap.id) {
+        setIsSubmitting(true);
+        let correctCount = 0;
+        QUESTIONS.forEach(q => {
+          if (updatedAnswers[q.id] === q.answer) {
+            correctCount++;
+          }
+        });
+
+        try {
+          const response = await api.post('/quizzes', {
+            goalId: roadmap.id,
+            topic: "React & Architecture Fundamentals",
+            correctAnswers: correctCount,
+            totalQuestions: QUESTIONS.length
+          });
+
+          if (response.success) {
+            setRemediated(response.remediated);
+            if (response.remediated) {
+              await refreshRoadmap();
+            }
+          }
+        } catch (err) {
+          console.error("Failed to submit quiz results to backend", err.message);
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
     }
   };
 
@@ -107,9 +146,9 @@ export default function QuizPage() {
     setAnswers({});
     setSelectedOpt(null);
     setIsFinished(false);
+    setRemediated(false);
   };
 
-  // Calculate results
   const scoreStats = () => {
     let correct = 0;
     let wrong = 0;
@@ -224,6 +263,22 @@ export default function QuizPage() {
 
             <h2 className="text-2xl font-bold font-display text-foreground">Quiz Results Summary</h2>
             <p className="text-sm text-muted mt-1 max-w-sm mx-auto">Great effort! Take a look at your grades and detailed answer explanations below.</p>
+
+            {/* Remediation Nudge Alert */}
+            {remediated && (
+              <div className="max-w-md mx-auto mt-6 p-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 text-amber-500 text-left text-xs flex gap-3 items-start animate-in slide-in-from-top-4 duration-300">
+                <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+                <div className="space-y-1">
+                  <p className="font-bold">Adaptive Remediation Triggered</p>
+                  <p className="text-muted leading-relaxed">
+                    Because you scored below 60%, LearnMate AI has updated your active roadmap with focused revision tasks and recommended resources in your next week layout.
+                  </p>
+                  <Link to="/dashboard/roadmap" className="inline-block font-semibold underline mt-1 text-primary">
+                    View Revised Roadmap
+                  </Link>
+                </div>
+              </div>
+            )}
 
             {/* Score Stats Row */}
             <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto mt-8 p-4 rounded-2xl border border-border bg-background/40">

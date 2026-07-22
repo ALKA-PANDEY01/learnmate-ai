@@ -16,6 +16,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Button } from '../components/ui/Button';
 import { useRoadmap } from '../context/RoadmapContext';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
 
 export default function StudySessionPage() {
   const { roadmap } = useRoadmap();
@@ -31,7 +32,7 @@ export default function StudySessionPage() {
   const [secondsLeft, setSecondsLeft] = useState(MODES.focus.time);
   const [isActive, setIsActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [todayStudyMinutes, setTodayStudyMinutes] = useState(115); // Mock initial studied minutes
+  const [todayStudyMinutes, setTodayStudyMinutes] = useState(115);
   const [sessionsCompleted, setSessionsCompleted] = useState(3);
   
   const timerRef = useRef(null);
@@ -49,7 +50,6 @@ export default function StudySessionPage() {
       timerRef.current = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
-            // Timer finished
             handleTimerComplete();
             return 0;
           }
@@ -63,13 +63,14 @@ export default function StudySessionPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isActive]);
+  }, [isActive, mode]);
 
-  const handleTimerComplete = () => {
+  const handleTimerComplete = async () => {
     setIsActive(false);
+    
+    // Web Audio API beep sound
     if (!isMuted) {
       try {
-        // Trigger generic web audio API beep so it works out-of-the-box without asset files
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
@@ -88,6 +89,19 @@ export default function StudySessionPage() {
     if (mode === 'focus') {
       setTodayStudyMinutes(prev => prev + 25);
       setSessionsCompleted(prev => prev + 1);
+
+      // Submit study session details to backend if active roadmap exists
+      if (roadmap && roadmap.id) {
+        try {
+          await api.post('/study-session', {
+            goalId: roadmap.id,
+            duration: 25 // 25 minutes Pomodoro focus duration
+          });
+        } catch (err) {
+          console.error("Failed to log study session to backend database", err.message);
+        }
+      }
+
       alert("Great job! You completed a 25-minute Focus Session. Time for a short break!");
       setMode('shortBreak');
     } else {
@@ -105,16 +119,14 @@ export default function StudySessionPage() {
     setSecondsLeft(MODES[mode].time);
   };
 
-  // Format seconds to MM:SS
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Percentage for progress ring calculations
+  // Percentage for progress ring
   const progressPercent = ((MODES[mode].time - secondsLeft) / MODES[mode].time) * 100;
-
   const weeklyStudyHours = roadmap ? roadmap.hoursStudied : 14.5;
   const todayHours = (todayStudyMinutes / 60).toFixed(1);
 
@@ -123,7 +135,7 @@ export default function StudySessionPage() {
       <SEO title="Study Session" description="Interactive Pomodoro focus timer to improve study velocity and tracking statistics." />
 
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold font-display tracking-tight text-foreground">
+        <h1 className="text-3xl font-bold font-display tracking-tight text-foreground animate-in fade-in duration-300">
           Study Session ⏳
         </h1>
         <p className="text-sm text-muted">
@@ -150,120 +162,108 @@ export default function StudySessionPage() {
               <div className="p-3.5 rounded-xl border border-border bg-background/40 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar size={16} className="text-secondary" />
-                  <span className="text-xs text-muted">Weekly Study Time</span>
+                  <span className="text-xs text-muted">Weekly Study Hours</span>
                 </div>
                 <span className="text-sm font-bold text-foreground">{weeklyStudyHours} hrs</span>
               </div>
 
               <div className="p-3.5 rounded-xl border border-border bg-background/40 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Award size={16} className="text-amber-500" />
-                  <span className="text-xs text-muted">Sessions Completed</span>
+                  <Award size={16} className="text-amber-500 animate-float" />
+                  <span className="text-xs text-muted">Today's Sessions</span>
                 </div>
-                <span className="text-sm font-bold text-foreground">{sessionsCompleted}</span>
+                <span className="text-sm font-bold text-foreground">{sessionsCompleted} sessions</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* AI Nudge Quote */}
-          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/15 space-y-2">
-            <div className="flex items-center gap-2 text-primary font-display font-semibold text-xs">
-              <Sparkles size={14} className="animate-pulse" />
-              <span>AI Study Tip</span>
+          {/* Productivity Tip */}
+          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex gap-3">
+            <Sparkles size={16} className="text-primary shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-foreground">AI Study Advice</h4>
+              <p className="text-[11px] text-muted leading-relaxed">
+                Spaced repetition is 40% more effective when combined with focus intervals. Take breaks to let memory consolidation happen.
+              </p>
             </div>
-            <p className="text-[11px] text-muted leading-relaxed">
-              "Studies show that studying in 25-minute intervals with 5-minute cognitive breaks enhances retention rates by up to 30% compared to cramming."
-            </p>
           </div>
         </div>
 
-        {/* Right Side: Core Timer App */}
+        {/* Right Side: Focus Timer Ring */}
         <div className="md:col-span-2">
-          <Card isGlass={true} padding="lg" className="border-border/50 flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[400px]">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
-            
-            {/* Audio volume toggler */}
-            <button
-              onClick={() => setIsMuted(!isMuted)}
-              className="absolute top-4 right-4 p-2 rounded-xl border border-border/50 text-muted hover:text-foreground hover:bg-card transition-colors"
-              title={isMuted ? 'Unmute alerts' : 'Mute alerts'}
-            >
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
-
-            {/* Timer mode buttons */}
-            <div className="flex items-center gap-2 p-1.5 bg-background/60 border border-border/40 rounded-2xl mb-8">
-              {Object.entries(MODES).map(([key, value]) => (
+          <Card isGlass={true} padding="lg" className="border-border/50 flex flex-col items-center justify-center text-center shadow-lg relative min-h-[380px]">
+            {/* Mode selections */}
+            <div className="flex bg-background/60 border border-border p-1 rounded-full mb-8 text-xs font-medium">
+              {Object.keys(MODES).map((m) => (
                 <button
-                  key={key}
-                  onClick={() => setMode(key)}
+                  key={m}
+                  onClick={() => setMode(m)}
                   className={`
-                    flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200
-                    ${mode === key
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-muted hover:text-foreground hover:bg-card/45'
-                    }
+                    px-4 py-1.5 rounded-full transition-colors flex items-center gap-1.5
+                    ${mode === m ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-foreground'}
                   `}
                 >
-                  {value.icon}
-                  <span>{value.label}</span>
+                  {MODES[m].icon}
+                  <span>{MODES[m].label}</span>
                 </button>
               ))}
             </div>
 
-            {/* Glowing countdown display */}
-            <div className="relative flex items-center justify-center w-52 h-52 mb-8">
-              {/* Circular SVG track */}
-              <svg className="absolute w-full h-full transform -rotate-90">
+            {/* Timer visual ring container */}
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90">
+                {/* Background Ring */}
                 <circle
-                  cx="104"
-                  cy="104"
-                  r="92"
-                  className="stroke-border/20 fill-none"
-                  strokeWidth="6"
+                  cx="50%"
+                  cy="50%"
+                  r="44%"
+                  className="stroke-border/40 fill-none"
+                  strokeWidth="6%"
                 />
+                {/* Foreground Active Progress Ring */}
                 <circle
-                  cx="104"
-                  cy="104"
-                  r="92"
-                  className={`fill-none transition-all duration-1000 ${
-                    mode === 'focus' ? 'stroke-primary' : 'stroke-secondary'
-                  }`}
-                  strokeWidth="7"
-                  strokeDasharray={2 * Math.PI * 92}
-                  strokeDashoffset={2 * Math.PI * 92 * (1 - progressPercent / 100)}
+                  cx="50%"
+                  cy="50%"
+                  r="44%"
+                  className="stroke-primary fill-none transition-all duration-300"
+                  strokeWidth="6%"
+                  strokeDasharray="276"
+                  strokeDashoffset={276 - (276 * progressPercent) / 100}
                   strokeLinecap="round"
                 />
               </svg>
-
-              <div className="flex flex-col items-center justify-center">
-                <span className="text-4xl sm:text-5xl font-bold font-mono tracking-tight text-foreground select-none drop-shadow-sm">
+              {/* Centered Time Count */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight font-display">
                   {formatTime(secondsLeft)}
                 </span>
-                <span className="text-[10px] font-semibold text-muted tracking-wider uppercase mt-1 select-none">
-                  {isActive ? 'focusing' : 'paused'}
+                <span className="text-[10px] text-muted font-bold tracking-widest uppercase mt-1">
+                  {MODES[mode].label}
                 </span>
               </div>
             </div>
 
-            {/* Control triggers */}
-            <div className="flex items-center gap-4">
+            {/* Controls Row */}
+            <div className="flex gap-4 mt-8">
               <Button
-                variant={isActive ? 'outline' : 'primary'}
+                variant={isActive ? 'glass' : 'primary'}
+                className="w-32 justify-center py-2.5 shadow-sm"
                 onClick={handleStartPause}
-                iconLeft={isActive ? <Pause size={16} /> : <Play size={16} />}
-                className="w-32 rounded-xl font-bold shadow-sm"
               >
                 {isActive ? 'Pause' : 'Start'}
               </Button>
               <Button
-                variant="glass"
+                variant="outline"
+                className="w-12 justify-center"
                 onClick={handleReset}
-                iconLeft={<RotateCcw size={16} />}
-                className="rounded-xl border border-border/50 text-muted hover:text-foreground"
-              >
-                Reset
-              </Button>
+                iconLeft={<RotateCcw size={15} />}
+              />
+              <Button
+                variant="outline"
+                className="w-12 justify-center"
+                onClick={() => setIsMuted(!isMuted)}
+                iconLeft={isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              />
             </div>
           </Card>
         </div>
