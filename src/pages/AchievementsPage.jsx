@@ -1,94 +1,98 @@
-import React from 'react';
-import { Trophy, ShieldAlert, Award, Star, Lock, Sparkles, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, ShieldAlert, Award, Star, Lock, Sparkles, Check, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
 
-const ACHIEVEMENTS = [
+const BADGES_LIST = [
   {
-    id: 1,
-    title: "First Step 🌅",
-    desc: "Complete your first task in any learning roadmap.",
-    category: "milestone",
-    xp: 50,
-    unlocked: true,
-    progress: 100,
-    requirement: "Complete 1 syllabus task node"
-  },
-  {
-    id: 2,
-    title: "Focus Master 🧘",
-    desc: "Complete a Pomodoro study focus session.",
-    category: "focus",
+    id: 'first_session',
+    title: 'First Focus Cycle 🧠',
+    desc: 'Logged your very first focus study session!',
+    category: 'focus',
     xp: 100,
-    unlocked: true,
-    progress: 100,
-    requirement: "Finish a 25-minute study interval"
+    requirement: 'Log 1 study Pomodoro session'
   },
   {
-    id: 3,
-    title: "Perfect Score 💯",
-    desc: "Achieve a score of 100% on any practice quiz.",
-    category: "quiz",
+    id: 'streak_7',
+    title: '7-Day Burner 🔥',
+    desc: 'Maintained a daily study streak for 7 consecutive days.',
+    category: 'streak',
     xp: 200,
-    unlocked: true,
-    progress: 100,
-    requirement: "Get 5 out of 5 correct on any quiz"
+    requirement: 'Maintain a 7-day study streak'
   },
   {
-    id: 4,
-    title: "Learning Streak 🔥",
-    desc: "Maintain a study session streak for 5 consecutive days.",
-    category: "streak",
-    xp: 150,
-    unlocked: true,
-    progress: 100,
-    requirement: "Log study times for 5 consecutive days"
-  },
-  {
-    id: 5,
-    title: "Sprint Completed 🏆",
-    desc: "Finish all scheduled tasks in Week 1 of your goal roadmap.",
-    category: "milestone",
-    xp: 250,
-    unlocked: false,
-    progress: 66,
-    requirement: "Complete all tasks in Week 1 (2/3 completed)"
-  },
-  {
-    id: 6,
-    title: "Consistency Hero 📅",
-    desc: "Complete study session timer blocks on 10 separate days.",
-    category: "focus",
+    id: 'hours_10',
+    title: 'Dedicated Scholar 📚',
+    desc: 'Logged over 10 hours of active focus study sessions.',
+    category: 'focus',
     xp: 300,
-    unlocked: false,
-    progress: 30,
-    requirement: "Focus on 10 days (3/10 days logged)"
+    requirement: 'Accumulate 10 study hours'
   },
   {
-    id: 7,
-    title: "Polymath Mastery 📚",
-    desc: "Establish and generate three separate learning roadmap goals.",
-    category: "milestone",
-    xp: 400,
-    unlocked: false,
-    progress: 33,
-    requirement: "Setup 3 learning goals (1/3 generated)"
-  },
-  {
-    id: 8,
-    title: "AI Dialogue Specialist 💬",
-    desc: "Submit 20 study questions to your AI Mentor chatbot.",
-    category: "mentor",
+    id: 'flashcards_50',
+    title: 'Memory Master 🧠',
+    desc: 'Added 50 active flashcards to your revision decks.',
+    category: 'retention',
     xp: 150,
-    unlocked: false,
-    progress: 25,
-    requirement: "Send 20 messages to AI Tutor (5/20 sent)"
+    requirement: 'Generate or add 50 flashcards'
+  },
+  {
+    id: 'quizzes_10',
+    title: 'Concept Check Champion 🏆',
+    desc: 'Completed 10 validation quizzes.',
+    category: 'quiz',
+    xp: 250,
+    requirement: 'Finish 10 practice quizzes'
+  },
+  {
+    id: 'roadmap_completed',
+    title: 'Syllabus Conqueror 🎓',
+    desc: 'Marked all core tasks on your roadmap complete!',
+    category: 'milestone',
+    xp: 500,
+    requirement: 'Complete 100% of tasks in active goal'
   }
 ];
 
 export default function AchievementsPage() {
-  const unlockedCount = ACHIEVEMENTS.filter(a => a.unlocked).length;
-  const totalXp = ACHIEVEMENTS.filter(a => a.unlocked).reduce((sum, a) => sum + a.xp, 0);
+  const [unlockedIds, setUnlockedIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+
+  const fetchAchievements = async () => {
+    try {
+      const response = await api.get('/achievements');
+      if (response.success && response.achievements) {
+        const ids = new Set(response.achievements.map(a => a.badgeId));
+        setUnlockedIds(ids);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch achievements:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAchievements();
+  }, []);
+
+  const totalUnlocked = BADGES_LIST.filter(b => unlockedIds.has(b.id)).length;
+  const earnedXp = BADGES_LIST.filter(b => unlockedIds.has(b.id)).reduce((sum, b) => sum + b.xp, 0);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-pulse">
+        <div className="h-8 bg-border/40 w-1/4 rounded-lg" />
+        <div className="h-20 bg-border/30 rounded-2xl" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[1, 2, 3].map(i => (
+            <Card key={i} className="h-32 border-border/40" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
@@ -117,11 +121,11 @@ export default function AchievementsPage() {
           <div className="flex items-center gap-6 shrink-0">
             <div className="text-center space-y-0.5">
               <span className="text-[9px] font-semibold text-muted uppercase">Badges Earned</span>
-              <p className="text-xl font-bold text-secondary font-display">{unlockedCount} of {ACHIEVEMENTS.length}</p>
+              <p className="text-xl font-bold text-secondary font-display">{totalUnlocked} of {BADGES_LIST.length}</p>
             </div>
             <div className="text-center space-y-0.5 border-l border-border/60 pl-6">
               <span className="text-[9px] font-semibold text-muted uppercase">Total Points</span>
-              <p className="text-xl font-bold text-primary font-display">{totalXp} XP</p>
+              <p className="text-xl font-bold text-primary font-display">{earnedXp} XP</p>
             </div>
           </div>
         </div>
@@ -129,93 +133,90 @@ export default function AchievementsPage() {
 
       {/* Achievements Cards Grid */}
       <div className="grid gap-4 sm:grid-cols-2">
-        {ACHIEVEMENTS.map((ach) => (
-          <Card
-            key={ach.id}
-            isGlass={true}
-            padding="md"
-            className={`
-              border-border/50 relative overflow-hidden transition-all duration-300 hover:shadow-md
-              ${ach.unlocked
-                ? 'hover:border-primary/20 dark:hover:border-primary/30'
-                : 'opacity-70 hover:opacity-90'
-              }
-            `}
-          >
-            {/* Left/Right layouts */}
-            <div className="flex items-start gap-4">
-              
-              {/* Badge Icon circle */}
-              <div className={`
-                w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border text-xl transition-transform duration-300 group-hover:scale-105
-                ${ach.unlocked
-                  ? 'bg-secondary/10 border-secondary/20 shadow-sm text-secondary'
-                  : 'bg-muted/10 border-border/40 text-muted'
+        {BADGES_LIST.map((ach) => {
+          const unlocked = unlockedIds.has(ach.id);
+          return (
+            <Card
+              key={ach.id}
+              isGlass={true}
+              padding="md"
+              className={`
+                border-border/50 relative overflow-hidden transition-all duration-300 hover:shadow-md
+                ${unlocked
+                  ? 'hover:border-primary/20 dark:hover:border-primary/30'
+                  : 'opacity-70 hover:opacity-90'
                 }
-              `}>
-                {ach.unlocked ? (
-                  <span className="select-none">{ach.title.split(' ').pop()}</span>
-                ) : (
-                  <Lock size={16} className="text-muted/60" />
-                )}
-              </div>
-
-              {/* Text content details */}
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <h4 className={`text-xs sm:text-sm font-bold text-foreground truncate ${ach.unlocked ? '' : 'text-muted'}`}>
-                      {ach.unlocked ? ach.title.split(' ').slice(0, -1).join(' ') : ach.title.split(' ').slice(0, -1).join(' ')}
-                    </h4>
-                    <span className="text-[9px] text-muted">{ach.category.toUpperCase()}</span>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
-                    ach.unlocked
-                      ? 'bg-primary/10 border-primary/20 text-primary'
-                      : 'bg-muted/10 border-border/30 text-muted'
-                  }`}>
-                    +{ach.xp} XP
-                  </span>
-                </div>
-
-                <p className="text-xs text-muted leading-relaxed">
-                  {ach.desc}
-                </p>
-
-                {/* Progress parameters */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between items-center text-[10px] font-semibold text-muted">
-                    <span>{ach.unlocked ? 'Unlocked' : 'Requirement'}</span>
-                    <span>{ach.unlocked ? '100%' : `${ach.progress}%`}</span>
-                  </div>
-                  
-                  {ach.unlocked ? (
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-secondary">
-                      <Check size={11} className="stroke-[3px]" />
-                      <span>{ach.requirement}</span>
-                    </div>
+              `}
+            >
+              <div className="flex items-start gap-4">
+                {/* Badge Icon circle */}
+                <div className={`
+                  w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border text-xl transition-transform duration-300
+                  ${unlocked
+                    ? 'bg-secondary/10 border-secondary/20 shadow-sm text-secondary'
+                    : 'bg-muted/10 border-border/40 text-muted'
+                  }
+                `}>
+                  {unlocked ? (
+                    <span className="select-none">{ach.title.split(' ').pop()}</span>
                   ) : (
-                    <div className="space-y-1">
-                      <div className="w-full bg-border/40 rounded-full h-1 overflow-hidden">
-                        <div
-                          className="bg-primary h-1 rounded-full"
-                          style={{ width: `${ach.progress}%` }}
-                        />
-                      </div>
-                      <p className="text-[9px] text-muted/80 truncate leading-none">
-                        Lock condition: {ach.requirement}
-                      </p>
-                    </div>
+                    <Lock size={16} className="text-muted/60" />
                   )}
                 </div>
 
+                {/* Text content details */}
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <h4 className={`text-xs sm:text-sm font-bold text-foreground truncate ${unlocked ? '' : 'text-muted'}`}>
+                        {unlocked ? ach.title.split(' ').slice(0, -1).join(' ') : ach.title.split(' ').slice(0, -1).join(' ')}
+                      </h4>
+                      <span className="text-[9px] text-muted">{ach.category.toUpperCase()}</span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
+                      unlocked
+                        ? 'bg-primary/10 border-primary/20 text-primary'
+                        : 'bg-muted/10 border-border/30 text-muted'
+                    }`}>
+                      +{ach.xp} XP
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-muted leading-relaxed">
+                    {ach.desc}
+                  </p>
+
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between items-center text-[10px] font-semibold text-muted">
+                      <span>{unlocked ? 'Unlocked' : 'Requirement'}</span>
+                      <span>{unlocked ? '100%' : '0%'}</span>
+                    </div>
+                    
+                    {unlocked ? (
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-secondary">
+                        <Check size={11} className="stroke-[3px]" />
+                        <span>Completed</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="w-full bg-border/40 rounded-full h-1 overflow-hidden">
+                          <div
+                            className="bg-primary h-1 rounded-full"
+                            style={{ width: '0%' }}
+                          />
+                        </div>
+                        <p className="text-[9px] text-muted/80 truncate leading-none">
+                          Lock condition: {ach.requirement}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
-
     </div>
   );
 }

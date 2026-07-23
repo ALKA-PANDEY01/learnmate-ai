@@ -18,6 +18,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();
@@ -25,8 +26,9 @@ export default function SettingsPage() {
 
   // Settings Forms States
   const [email, setEmail] = useState(user?.email || '');
-  const [username, setUsername] = useState(user?.username || '');
+  const [name, setName] = useState(user?.name || '');
   const [isAccountSaved, setIsAccountSaved] = useState(false);
+  const [accountError, setAccountError] = useState('');
   
   // Security Form States
   const [oldPassword, setOldPassword] = useState('');
@@ -35,21 +37,28 @@ export default function SettingsPage() {
   const [secMessage, setSecMessage] = useState('');
   const [secError, setSecError] = useState('');
 
-  // Preference Checkbox States
+  // Preference Checkbox States (Stored in localStorage or local state as layout features)
   const [prefNudges, setPrefNudges] = useState(true);
   const [prefWeekly, setPrefWeekly] = useState(true);
-  const [prefAchievements, setPrefAchievements] = useState(false);
+  const [prefAchievements, setPrefAchievements] = useState(true);
 
-  const handleAccountSubmit = (e) => {
+  const handleAccountSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !username.trim()) return;
+    setAccountError('');
+    setIsAccountSaved(false);
 
-    updateUser({ email: email.trim(), username: username.trim() });
-    setIsAccountSaved(true);
-    setTimeout(() => setIsAccountSaved(false), 2500);
+    if (!email.trim() || !name.trim()) return;
+
+    try {
+      await updateUser({ name: name.trim(), email: email.trim() });
+      setIsAccountSaved(true);
+      setTimeout(() => setIsAccountSaved(false), 2500);
+    } catch (err) {
+      setAccountError(err.message || 'Failed to update profile.');
+    }
   };
 
-  const handleSecuritySubmit = (e) => {
+  const handleSecuritySubmit = async (e) => {
     e.preventDefault();
     setSecError('');
     setSecMessage('');
@@ -69,12 +78,22 @@ export default function SettingsPage() {
       return;
     }
 
-    // Success Mock
-    setSecMessage('Password updated successfully.');
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setTimeout(() => setSecMessage(''), 3000);
+    try {
+      const response = await api.put('/profile/password', {
+        oldPassword,
+        newPassword
+      });
+
+      if (response.success) {
+        setSecMessage('Password updated successfully.');
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => setSecMessage(''), 3000);
+      }
+    } catch (err) {
+      setSecError(err.message || 'Failed to update password. Verify your current password.');
+    }
   };
 
   return (
@@ -131,7 +150,7 @@ export default function SettingsPage() {
                   {theme === 'light' ? <Sun size={16} /> : <Moon size={16} />}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Dark Mode Mode</p>
+                  <p className="text-xs font-bold text-foreground">Dark Mode</p>
                   <p className="text-[10px] text-muted">Currently {theme === 'light' ? 'Light' : 'Dark'} mode active.</p>
                 </div>
               </div>
@@ -186,7 +205,7 @@ export default function SettingsPage() {
           <Card isGlass={true} padding="md" id="account" className="border-border/50 scroll-mt-24">
             <CardHeader className="mb-0 pb-2">
               <CardTitle className="text-sm font-semibold">Account Details</CardTitle>
-              <CardDescription className="text-xs">Update your email addresses and handle settings.</CardDescription>
+              <CardDescription className="text-xs">Update your email address and profile name.</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
               <form onSubmit={handleAccountSubmit} className="space-y-4">
@@ -196,14 +215,20 @@ export default function SettingsPage() {
                     <span>Account parameters saved.</span>
                   </div>
                 )}
+                {accountError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium flex items-center gap-2">
+                    <AlertCircle size={15} />
+                    <span>{accountError}</span>
+                  </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Input
-                    label="Username"
+                    label="Full Name"
                     type="text"
-                    id="settings-username-input"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    id="settings-name-input"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     required
                   />
 

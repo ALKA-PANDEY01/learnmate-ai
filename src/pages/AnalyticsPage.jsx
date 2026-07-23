@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -25,91 +25,95 @@ import {
   Sparkles,
   Trophy,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { useRoadmap } from '../context/RoadmapContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
 
 export default function AnalyticsPage() {
   const { roadmap } = useRoadmap();
-
-  // Fallback defaults
-  const activeHours = roadmap ? roadmap.hoursStudied : 14.5;
-  const activeProgress = roadmap ? roadmap.progress : 20;
-
-  // 1. Weekly hours data
-  const weeklyHoursData = [
-    { name: 'Mon', hours: 2.1 },
-    { name: 'Tue', hours: 1.5 },
-    { name: 'Wed', hours: 3.2 },
-    { name: 'Thu', hours: 0.8 },
-    { name: 'Fri', hours: 2.5 },
-    { name: 'Sat', hours: 4.4 },
-    { name: 'Sun', hours: 1.8 }
-  ];
-
-  // 2. Monthly progress timeline data
-  const monthlyProgressData = [
-    { name: 'Week 1', progress: Math.min(activeProgress, 25) },
-    { name: 'Week 2', progress: Math.min(activeProgress, 50) },
-    { name: 'Week 3', progress: Math.min(activeProgress, 75) },
-    { name: 'Week 4', progress: activeProgress }
-  ];
-
-  // 3. Topic progress data (Radar style topics)
-  const topicProgressData = [
-    { subject: 'React v19', value: 85, fullMark: 100 },
-    { subject: 'Tailwind v4', value: 92, fullMark: 100 },
-    { subject: 'API Interceptors', value: 60, fullMark: 100 },
-    { subject: 'Route Guards', value: 75, fullMark: 100 },
-    { subject: 'Build Tools', value: 45, fullMark: 100 }
-  ];
-
-  // 4. Quiz Trend scores
-  const quizTrendData = [
-    { quiz: 'Test 1', score: 72 },
-    { quiz: 'Test 2', score: 85 },
-    { quiz: 'Test 3', score: 94 },
-    { quiz: 'Test 4', score: 80 },
-    { quiz: 'Test 5', score: 88 }
-  ];
-
-  // 5. Heatmap contributions: 7 rows (Mon-Sun) by 18 columns.
-  // Shading is based on index or random mock values
-  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const columnsCount = 18;
   
-  // Static seed matrix matching consistency
-  const heatmapData = [
-    [2, 0, 4, 3, 1, 0, 3, 2, 4, 1, 0, 2, 3, 4, 1, 0, 2, 3], // Mon
-    [0, 1, 2, 0, 3, 4, 1, 0, 2, 3, 4, 1, 0, 3, 2, 4, 1, 0], // Tue
-    [3, 4, 1, 0, 2, 3, 4, 1, 0, 2, 3, 4, 1, 0, 3, 2, 4, 1], // Wed
-    [1, 0, 2, 3, 4, 1, 0, 3, 2, 4, 1, 0, 2, 3, 4, 1, 0, 2], // Thu
-    [2, 3, 4, 1, 0, 2, 3, 4, 1, 0, 2, 3, 4, 1, 0, 2, 3, 4], // Fri
-    [4, 1, 0, 2, 3, 4, 1, 0, 2, 3, 4, 1, 0, 3, 2, 4, 1, 0], // Sat
-    [0, 2, 3, 4, 1, 0, 3, 2, 4, 1, 0, 2, 3, 4, 1, 0, 2, 3]  // Sun
-  ];
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Shading colors mapper
-  const getShadeColor = (val) => {
-    switch (val) {
-      case 0: return 'bg-border/20 dark:bg-border/5'; // zero study
-      case 1: return 'bg-emerald-500/20'; // light study (15m)
-      case 2: return 'bg-emerald-500/40'; // average study (30m)
-      case 3: return 'bg-emerald-500/75'; // high study (60m)
-      case 4: return 'bg-emerald-500'; // intense study (90m+)
-      default: return 'bg-border/20';
+  const fetchAnalytics = async () => {
+    try {
+      const response = await api.get('/analytics');
+      if (response.success && response.data) {
+        setAnalytics(response.data);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch analytics from DB:", err.message);
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [roadmap]);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-pulse">
+        <div className="h-8 bg-border/40 w-1/4 rounded-lg" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map(i => (
+            <Card key={i} className="h-24 border-border/40" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback defaults if no study logs yet
+  const totalHours = analytics ? analytics.totalStudyHours : 0;
+  const avgFocus = analytics ? analytics.averageFocusTime : 0;
+  const completionRate = analytics ? analytics.completionRate : 0;
+  const streakVal = analytics ? analytics.currentStreak : 0;
+  const quizAvg = analytics ? analytics.quizAverage : 0;
+
+  const weeklyHoursData = analytics && analytics.weeklyStudyHours?.length > 0
+    ? analytics.weeklyStudyHours.map(w => ({ name: w.week, hours: w.hours }))
+    : [
+        { name: 'Week 1', hours: 0 },
+        { name: 'Week 2', hours: 0 },
+        { name: 'Week 3', hours: 0 },
+        { name: 'Week 4', hours: 0 }
+      ];
+
+  const dailyHoursData = analytics && analytics.dailyStudyHours?.length > 0
+    ? analytics.dailyStudyHours.map(d => ({ name: d.day, hours: d.hours }))
+    : [
+        { name: 'Mon', hours: 0 },
+        { name: 'Tue', hours: 0 },
+        { name: 'Wed', hours: 0 },
+        { name: 'Thu', hours: 0 },
+        { name: 'Fri', hours: 0 },
+        { name: 'Sat', hours: 0 },
+        { name: 'Sun', hours: 0 }
+      ];
+
+  // Map strong/weak topics to Radar chart data representation
+  const topicProgressData = [
+    { subject: 'Topic Strengths', value: quizAvg || 50, fullMark: 100 },
+    { subject: 'Focus Consistency', value: totalHours > 0 ? 85 : 10, fullMark: 100 },
+    { subject: 'Completion Speed', value: completionRate || 10, fullMark: 100 },
+    { subject: 'Weak Topic Mitigation', value: analytics && analytics.weakTopics?.length === 0 ? 90 : 40, fullMark: 100 }
+  ];
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
       <SEO title="Learning Analytics" description="Detailed insights and metrics tracing study durations, quiz parameters, and syllabus progress." />
 
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold font-display tracking-tight text-foreground">
-          Learning Analytics 📊
+        <h1 className="text-3xl font-bold font-display tracking-tight text-foreground flex items-center gap-2">
+          <span>Learning Analytics</span>
+          <Activity className="text-primary" size={24} />
         </h1>
         <p className="text-sm text-muted mt-1 leading-snug">
           Understand your learning velocity, test results histories, and topic-wise strengths.
@@ -119,10 +123,10 @@ export default function AnalyticsPage() {
       {/* KPI Cards Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { title: "Total Study Hours", value: `${activeHours} hrs`, desc: "Logged focus minutes", icon: <Clock size={16} />, color: "text-primary" },
-          { title: "Average Daily Focus", value: "2.1 hrs", desc: "Monitored across 7 days", icon: <Activity size={16} />, color: "text-secondary" },
-          { title: "Completion Rate", value: `${activeProgress}%`, desc: "Of active roadmap syllabus", icon: <TrendingUp size={16} />, color: "text-indigo-500" },
-          { title: "Quizzes Taken", value: roadmap ? "4 tests" : "0 tests", desc: "Concept validations tests", icon: <Brain size={16} />, color: "text-amber-500" }
+          { title: "Total Study Hours", value: `${totalHours} hrs`, desc: "Logged focus sessions", icon: <Clock size={16} />, color: "text-primary" },
+          { title: "Avg Session Duration", value: `${avgFocus} mins`, desc: "Focus duration blocks", icon: <Activity size={16} />, color: "text-secondary" },
+          { title: "Completion Rate", value: `${completionRate}%`, desc: "Of active roadmap syllabus", icon: <TrendingUp size={16} />, color: "text-indigo-500" },
+          { title: "Active Streak", value: `${streakVal} days`, desc: "Current study streak", icon: <Trophy size={16} />, color: "text-amber-500" }
         ].map((stat, idx) => (
           <Card key={idx} isGlass={true} padding="md" hoverEffect={true}>
             <div className="flex justify-between items-start">
@@ -139,161 +143,128 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* Learning Heatmap Consistency Card */}
-      <Card isGlass={true} className="border-border/50">
-        <CardHeader className="mb-0 pb-2">
-          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Calendar size={15} className="text-primary" />
-            <span>Learning Consistency Heatmap</span>
-          </CardTitle>
-          <CardDescription className="text-xs">Visualize your daily study consistency. Darker cells represent longer focus sessions.</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 overflow-x-auto select-none">
-          <div className="min-w-[500px] flex gap-2">
-            {/* Row index labels */}
-            <div className="grid grid-rows-7 text-[10px] text-muted font-semibold leading-relaxed pr-2 pt-1 gap-1">
-              {daysOfWeek.map((day, idx) => (
-                <span key={day} className={idx % 2 === 0 ? '' : 'opacity-0'}>{day}</span>
-              ))}
-            </div>
-
-            {/* Grid of nodes */}
-            <div className="flex-1 grid grid-flow-col grid-rows-7 gap-1">
-              {heatmapData.map((row, rIdx) => 
-                row.map((cellVal, cIdx) => (
-                  <div
-                    key={`${rIdx}-${cIdx}`}
-                    title={`Day status: ${cellVal * 25} minutes focus`}
-                    className={`w-3.5 h-3.5 rounded-[4px] border border-border/20 transition-all hover:scale-110 cursor-pointer ${getShadeColor(cellVal)}`}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-          
-          {/* Heatmap Legend */}
-          <div className="flex items-center gap-2 text-[10px] text-muted font-medium mt-4 justify-end">
-            <span>Less</span>
-            <div className="w-2.5 h-2.5 rounded bg-border/20 dark:bg-border/5 border border-border/25" />
-            <div className="w-2.5 h-2.5 rounded bg-emerald-500/20" />
-            <div className="w-2.5 h-2.5 rounded bg-emerald-500/40" />
-            <div className="w-2.5 h-2.5 rounded bg-emerald-500/75" />
-            <div className="w-2.5 h-2.5 rounded bg-emerald-500" />
-            <span>More</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recharts Core Charts Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Weekly Hours Bar */}
-        <Card isGlass={true} className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-foreground">Weekly Study Hours</CardTitle>
-            <CardDescription className="text-xs">Hours spent on focus timer blocks across the week.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyHoursData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
-                <XAxis dataKey="name" stroke="var(--muted)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    color: 'var(--foreground)'
-                  }}
-                />
-                <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={30} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Monthly Progress Line */}
-        <Card isGlass={true} className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-foreground">Monthly Progress Timeline</CardTitle>
-            <CardDescription className="text-xs">Overall completion percentages mapped week-by-week.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyProgressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="analyticsProgressGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
-                <XAxis dataKey="name" stroke="var(--muted)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} domain={[0, 100]} />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    color: 'var(--foreground)'
-                  }}
-                />
-                <Area type="monotone" dataKey="progress" stroke="var(--primary)" strokeWidth={2.5} fillOpacity={1} fill="url(#analyticsProgressGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Quiz Scores Trend Line */}
-        <Card isGlass={true} className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-foreground">Quiz Scores History</CardTitle>
-            <CardDescription className="text-xs">Scores (%) obtained across successive diagnostic quizzes.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={quizTrendData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
-                <XAxis dataKey="quiz" stroke="var(--muted)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} domain={[50, 100]} />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    color: 'var(--foreground)'
-                  }}
-                />
-                <Line type="monotone" dataKey="score" stroke="var(--color-secondary)" strokeWidth={2.5} dot={{ strokeWidth: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Radar Topic Strength Chart */}
-        <Card isGlass={true} className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-foreground">Topic-wise Syllabus Progress</CardTitle>
-            <CardDescription className="text-xs">Radial strength mapping across target study modules.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64 flex justify-center">
-            <div className="w-full h-full max-w-[280px]">
+      {totalHours === 0 && completionRate === 0 ? (
+        <div className="glass-card rounded-2xl p-16 border border-border/50 text-center space-y-4">
+          <div className="text-4xl">📊</div>
+          <p className="text-sm font-semibold text-muted">No focus logs generated yet.</p>
+          <p className="text-xs text-muted/80 max-w-sm mx-auto">Start a Pomodoro study session or log milestone quizzes to trigger dynamic performance graphs!</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Daily Hours Bar */}
+          <Card isGlass={true} className="border-border/50">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Daily Study Hours (Last 7 Days)</CardTitle>
+              <CardDescription className="text-xs">Hours spent on focus timer blocks.</CardDescription>
+            </CardHeader>
+            <CardContent className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={topicProgressData}>
-                  <PolarGrid stroke="var(--border)" opacity={0.3} />
-                  <PolarAngleAxis dataKey="subject" stroke="var(--muted)" fontSize={9} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="var(--border)" tick={false} />
-                  <Radar name="Progress" dataKey="value" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.2} />
-                </RadarChart>
+                <BarChart data={dailyHoursData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="name" stroke="var(--muted)" fontSize={11} tickLine={false} />
+                  <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      color: 'var(--foreground)'
+                    }}
+                  />
+                  <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                </BarChart>
               </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
+          {/* Weekly Hours Bar */}
+          <Card isGlass={true} className="border-border/50">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Weekly Study Hours (Last 4 Weeks)</CardTitle>
+              <CardDescription className="text-xs">Aggregate hours logged week-by-week.</CardDescription>
+            </CardHeader>
+            <CardContent className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyHoursData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="name" stroke="var(--muted)" fontSize={11} tickLine={false} />
+                  <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      color: 'var(--foreground)'
+                    }}
+                  />
+                  <Bar dataKey="hours" fill="var(--color-secondary)" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Radar Topic Strength Chart */}
+          <Card isGlass={true} className="border-border/50">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Dynamic Learning Profile</CardTitle>
+              <CardDescription className="text-xs">Radial strength mapping across target study parameters.</CardDescription>
+            </CardHeader>
+            <CardContent className="h-64 flex justify-center">
+              <div className="w-full h-full max-w-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={topicProgressData}>
+                    <PolarGrid stroke="var(--border)" opacity={0.3} />
+                    <PolarAngleAxis dataKey="subject" stroke="var(--muted)" fontSize={9} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="var(--border)" tick={false} />
+                    <Radar name="Strength" dataKey="value" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Strength / Weakness list */}
+          <Card isGlass={true} className="border-border/50">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Topic-wise Breakdown</CardTitle>
+              <CardDescription className="text-xs">Strengths and adaptive focus priorities deduced by AI.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Strong Concepts ✓</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {analytics && analytics.strongTopics?.length > 0 ? (
+                    analytics.strongTopics.map((topic, i) => (
+                      <span key={i} className="text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2.5 py-1 rounded-xl">
+                        {topic}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted">Complete quizzes with score &ge; 80% to list strengths.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Focus Areas (Weak Topics) 🚨</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {analytics && analytics.weakTopics?.length > 0 ? (
+                    analytics.weakTopics.map((topic, i) => (
+                      <span key={i} className="text-xs bg-red-500/10 text-red-500 border border-red-500/25 px-2.5 py-1 rounded-xl">
+                        {topic}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted">No weak topics logged. Awesome job!</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

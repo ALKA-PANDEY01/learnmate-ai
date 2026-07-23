@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   HelpCircle,
@@ -10,7 +10,8 @@ import {
   Sparkles,
   BookOpen,
   ArrowLeft,
-  AlertTriangle
+  AlertTriangle,
+  Play
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -18,71 +19,14 @@ import { SEO } from '../components/common/SEO';
 import api from '../services/api';
 import { useRoadmap } from '../context/RoadmapContext';
 
-const QUESTIONS = [
-  {
-    id: 1,
-    question: "Which of the following is true about Tailwind CSS v4?",
-    options: [
-      { key: "A", text: "It requires configuration via tailwind.config.js." },
-      { key: "B", text: "It uses a native CSS-first configuration parser and `@import 'tailwindcss';` syntax." },
-      { key: "C", text: "It drops support for dark: modifier variants." },
-      { key: "D", text: "It compiles solely on runtime in the client-side browser." }
-    ],
-    answer: "B",
-    explanation: "Tailwind CSS v4 introduces a new Rust-based engine that parses theme configurations directly in CSS files using standard CSS variables and directives rather than relying on a separate JavaScript tailwind.config.js file."
-  },
-  {
-    id: 2,
-    question: "What is the primary role of the React Fiber reconciler?",
-    options: [
-      { key: "A", text: "To directly paint DOM nodes on screen coordinates." },
-      { key: "B", text: "To enable incremental rendering by splitting reconciliations into work units." },
-      { key: "C", text: "To replace CSS styling stylesheets." },
-      { key: "D", text: "To handle Axios network request intercepts." }
-    ],
-    answer: "B",
-    explanation: "React Fiber reconciler splits reconciliation work into units (fibers), allowing React to pause, reuse, or abort updates, optimizing frame rate consistency during heavy UI renders."
-  },
-  {
-    id: 3,
-    question: "How does React Router guard routes in ProtectedRoute configurations?",
-    options: [
-      { key: "A", text: "By using browser window.close() commands." },
-      { key: "B", text: "By checking authentication context and returning a Navigate redirect component." },
-      { key: "C", text: "By hashing passwords in local storage." },
-      { key: "D", text: "By preventing webpack compile configurations." }
-    ],
-    answer: "B",
-    explanation: "Protected Route guards check authorization context variables in their render scopes. If the user session is absent, it returns a `<Navigate to='/login' replace />` component, aborting access to child dashboard layouts."
-  },
-  {
-    id: 4,
-    question: "Which hook should you implement to execute cleanups when components unmount in React?",
-    options: [
-      { key: "A", text: "useMemo(() => data, [])" },
-      { key: "B", text: "useEffect(() => { return () => cleanup(); }, [])" },
-      { key: "C", text: "useCallback(() => fn, [])" },
-      { key: "D", text: "useRef(null)" }
-    ],
-    answer: "B",
-    explanation: "If you return a function from the callback passed to `useEffect`, React will call it when the component unmounts. An empty dependency array ensures this effect and its cleanup run only once on mount and unmount."
-  },
-  {
-    id: 5,
-    question: "In Axios configuration, what are 'interceptors' used for?",
-    options: [
-      { key: "A", text: "To intercept compile errors in Vite development servers." },
-      { key: "B", text: "To mutate request headers (e.g. adding tokens) or response payloads globally." },
-      { key: "C", text: "To prevent users from resizing browser screens." },
-      { key: "D", text: "To compile index.css stylesheets." }
-    ],
-    answer: "B",
-    explanation: "Axios interceptors let you run custom functions before requests go out or before responses are handled by `.then()`/`.catch()`, which is ideal for injecting authentication headers (e.g. Bearer tokens) or unifying network error handling."
-  }
-];
-
 export default function QuizPage() {
   const { roadmap, refreshRoadmap } = useRoadmap();
+  
+  // Quiz flow states
+  const [topic, setTopic] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [quizStarted, setQuizStarted] = useState(false);
   
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -91,82 +35,103 @@ export default function QuizPage() {
   
   const [remediated, setRemediated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attemptDetails, setAttemptDetails] = useState(null);
 
-  const currentQuestion = QUESTIONS[currentIdx];
+  // Pre-fill topic if roadmap has pending tasks
+  useEffect(() => {
+    if (roadmap && roadmap.weeks) {
+      // Find first pending task to suggest
+      for (const week of roadmap.weeks) {
+        const pending = week.tasks?.find(t => t.status === 'pending');
+        if (pending) {
+          setTopic(pending.title);
+          break;
+        }
+      }
+    }
+  }, [roadmap]);
 
-  const handleOptionSelect = (key) => {
-    setSelectedOpt(key);
+  const handleStartQuiz = async () => {
+    if (!topic || !roadmap) return;
+
+    setLoading(true);
+    try {
+      const response = await api.post('/quizzes/generate', {
+        goalId: roadmap.id,
+        topic
+      });
+
+      if (response.success && response.quiz) {
+        // Standardize structure for options (handling arrays of strings or objects)
+        const formatted = response.quiz.map(q => ({
+          ...q,
+          options: q.options.map(o => typeof o === 'string' ? o : o.text || '')
+        }));
+        setQuestions(formatted);
+        setQuizStarted(true);
+        setCurrentIdx(0);
+        setAnswers({});
+        setSelectedOpt(null);
+        setIsFinished(false);
+      }
+    } catch (err) {
+      alert("Failed to generate quiz. Make sure your Gemini API keys are configured correctly.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOptionSelect = (optionText) => {
+    setSelectedOpt(optionText);
   };
 
   const handleNext = async () => {
+    if (!selectedOpt) return;
+
+    const currentQuestion = questions[currentIdx];
     const updatedAnswers = { ...answers, [currentQuestion.id]: selectedOpt };
     setAnswers(updatedAnswers);
     setSelectedOpt(null);
 
-    if (currentIdx < QUESTIONS.length - 1) {
+    if (currentIdx < questions.length - 1) {
       setCurrentIdx(prev => prev + 1);
     } else {
       setIsFinished(true);
+      setIsSubmitting(true);
 
-      // Submit results to backend if active roadmap exists
-      if (roadmap && roadmap.id) {
-        setIsSubmitting(true);
-        let correctCount = 0;
-        QUESTIONS.forEach(q => {
-          if (updatedAnswers[q.id] === q.answer) {
-            correctCount++;
-          }
+      try {
+        const response = await api.post('/quizzes/submit', {
+          goalId: roadmap.id,
+          topic,
+          questions,
+          answers: updatedAnswers
         });
 
-        try {
-          const response = await api.post('/quizzes', {
-            goalId: roadmap.id,
-            topic: "React & Architecture Fundamentals",
-            correctAnswers: correctCount,
-            totalQuestions: QUESTIONS.length
-          });
-
-          if (response.success) {
-            setRemediated(response.remediated);
-            if (response.remediated) {
-              await refreshRoadmap();
-            }
+        if (response.success) {
+          setAttemptDetails(response.attempt);
+          setRemediated(response.remediated);
+          if (response.remediated) {
+            await refreshRoadmap();
           }
-        } catch (err) {
-          console.error("Failed to submit quiz results to backend", err.message);
-        } finally {
-          setIsSubmitting(false);
         }
+      } catch (err) {
+        console.error("Failed to submit quiz results", err.message);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
 
   const resetQuiz = () => {
-    setCurrentIdx(0);
+    setQuizStarted(false);
+    setIsFinished(false);
+    setQuestions([]);
     setAnswers({});
     setSelectedOpt(null);
-    setIsFinished(false);
-    setRemediated(false);
+    setAttemptDetails(null);
   };
 
-  const scoreStats = () => {
-    let correct = 0;
-    let wrong = 0;
-    QUESTIONS.forEach(q => {
-      if (answers[q.id] === q.answer) {
-        correct++;
-      } else {
-        wrong++;
-      }
-    });
-    return {
-      correct,
-      wrong,
-      score: Math.round((correct / QUESTIONS.length) * 100)
-    };
-  };
-
-  const results = isFinished ? scoreStats() : null;
+  const currentQuestion = questions[currentIdx];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-12 animate-in fade-in duration-300">
@@ -181,18 +146,49 @@ export default function QuizPage() {
         </p>
       </div>
 
-      {!isFinished ? (
+      {!quizStarted && (
+        <Card isGlass={true} padding="lg" className="border-border/50 shadow-md space-y-6">
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold font-display text-foreground">Generate a Practice Quiz</h3>
+            <p className="text-xs text-muted leading-relaxed">
+              Input any topic from your learning path. Gemini will dynamically generate a 5-question test with multiple choice, true/false, and fill-in-the-blanks challenges.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-foreground">Quiz Subject / Topic</label>
+            <input
+              type="text"
+              placeholder="e.g. React hooks, Redux middlewares, Mongoose indexes"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted"
+            />
+          </div>
+
+          <Button
+            onClick={handleStartQuiz}
+            disabled={loading || !topic || !roadmap}
+            className="w-full h-11 font-bold"
+            iconLeft={loading ? <RefreshCw className="animate-spin" size={16} /> : <Play size={16} />}
+          >
+            {loading ? 'Generating Dynamic Quiz Questions...' : 'Start Dynamic Quiz'}
+          </Button>
+        </Card>
+      )}
+
+      {quizStarted && !isFinished && currentQuestion && (
         <Card isGlass={true} padding="lg" className="border-border/50 shadow-md">
           {/* Progress bar */}
           <div className="space-y-2 mb-6">
             <div className="flex justify-between items-center text-xs font-semibold text-muted">
-              <span>Question {currentIdx + 1} of {QUESTIONS.length}</span>
-              <span>{Math.round(((currentIdx) / QUESTIONS.length) * 100)}% Complete</span>
+              <span>Question {currentIdx + 1} of {questions.length}</span>
+              <span>{Math.round(((currentIdx) / questions.length) * 100)}% Complete</span>
             </div>
             <div className="w-full bg-border/40 rounded-full h-1.5 overflow-hidden">
               <div
                 className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${((currentIdx + 1) / QUESTIONS.length) * 100}%` }}
+                style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
               />
             </div>
           </div>
@@ -209,35 +205,46 @@ export default function QuizPage() {
 
           {/* Options */}
           <div className="space-y-3 mb-8">
-            {currentQuestion.options.map((opt) => {
-              const isSelected = selectedOpt === opt.key;
-              return (
-                <label
-                  key={opt.key}
-                  className={`
-                    flex items-center gap-3 p-3.5 rounded-xl border text-xs sm:text-sm cursor-pointer transition-all duration-200
-                    ${isSelected
-                      ? 'border-primary bg-primary/5 text-primary font-semibold'
-                      : 'border-border/60 hover:bg-card/70 text-muted hover:text-foreground'
-                    }
-                  `}
-                >
-                  <input
-                    type="radio"
-                    name="quiz-option"
-                    checked={isSelected}
-                    onChange={() => handleOptionSelect(opt.key)}
-                    className="sr-only"
-                  />
-                  <span className={`w-5 h-5 rounded-lg border text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                    isSelected ? 'bg-primary text-white border-primary' : 'border-border bg-background'
-                  }`}>
-                    {opt.key}
-                  </span>
-                  <span>{opt.text}</span>
-                </label>
-              );
-            })}
+            {currentQuestion.options && currentQuestion.options.length > 0 ? (
+              currentQuestion.options.map((opt, i) => {
+                const isSelected = selectedOpt === opt;
+                return (
+                  <label
+                    key={i}
+                    className={`
+                      flex items-center gap-3 p-3.5 rounded-xl border text-xs sm:text-sm cursor-pointer transition-all duration-200
+                      ${isSelected
+                        ? 'border-primary bg-primary/5 text-primary font-semibold'
+                        : 'border-border/60 hover:bg-card/70 text-muted hover:text-foreground'
+                      }
+                    `}
+                  >
+                    <input
+                      type="radio"
+                      name="quiz-option"
+                      checked={isSelected}
+                      onChange={() => handleOptionSelect(opt)}
+                      className="sr-only"
+                    />
+                    <span className={`w-5 h-5 rounded-lg border text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                      isSelected ? 'bg-primary text-white border-primary' : 'border-border bg-background'
+                    }`}>
+                      {String.fromCharCode(65 + i)}
+                    </span>
+                    <span>{opt}</span>
+                  </label>
+                );
+              })
+            ) : (
+              // Handle fill in the blank response text box
+              <input
+                type="text"
+                placeholder="Type your answer here..."
+                value={selectedOpt || ''}
+                onChange={e => setSelectedOpt(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted"
+              />
+            )}
           </div>
 
           {/* Nav trigger */}
@@ -247,12 +254,13 @@ export default function QuizPage() {
               disabled={!selectedOpt}
               iconRight={<ArrowRight size={15} />}
             >
-              {currentIdx === QUESTIONS.length - 1 ? 'Finish Quiz' : 'Next Question'}
+              {currentIdx === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
             </Button>
           </div>
         </Card>
-      ) : (
-        // Results review screen
+      )}
+
+      {quizStarted && isFinished && (
         <div className="space-y-6">
           <Card isGlass={true} padding="lg" className="border-border/50 text-center relative overflow-hidden shadow-xl">
             <div className="absolute inset-0 bg-gradient-to-tr from-secondary/5 to-transparent pointer-events-none" />
@@ -281,24 +289,26 @@ export default function QuizPage() {
             )}
 
             {/* Score Stats Row */}
-            <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto mt-8 p-4 rounded-2xl border border-border bg-background/40">
-              <div className="text-center space-y-1">
-                <span className="text-[10px] font-semibold text-muted uppercase">Final Score</span>
-                <p className="text-2xl font-extrabold text-primary font-display">{results.score}%</p>
+            {attemptDetails && (
+              <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto mt-8 p-4 rounded-2xl border border-border bg-background/40">
+                <div className="text-center space-y-1">
+                  <span className="text-[10px] font-semibold text-muted uppercase">Final Score</span>
+                  <p className="text-2xl font-extrabold text-primary font-display">{attemptDetails.score}%</p>
+                </div>
+                <div className="text-center space-y-1 border-l border-border/60">
+                  <span className="text-[10px] font-semibold text-muted uppercase">Correct</span>
+                  <p className="text-2xl font-extrabold text-secondary font-display">{attemptDetails.correctAnswers}</p>
+                </div>
+                <div className="text-center space-y-1 border-l border-border/60">
+                  <span className="text-[10px] font-semibold text-muted uppercase">Total Questions</span>
+                  <p className="text-2xl font-extrabold text-foreground font-display">{attemptDetails.totalQuestions}</p>
+                </div>
               </div>
-              <div className="text-center space-y-1 border-l border-border/60">
-                <span className="text-[10px] font-semibold text-muted uppercase">Correct</span>
-                <p className="text-2xl font-extrabold text-secondary font-display">{results.correct}</p>
-              </div>
-              <div className="text-center space-y-1 border-l border-border/60">
-                <span className="text-[10px] font-semibold text-muted uppercase">Incorrect</span>
-                <p className="text-2xl font-extrabold text-red-500 font-display">{results.wrong}</p>
-              </div>
-            </div>
+            )}
 
             <div className="mt-8 flex justify-center gap-3">
               <Button onClick={resetQuiz} variant="primary" iconLeft={<RefreshCw size={15} />}>
-                Try Again
+                Try Another Topic
               </Button>
               <Link to="/dashboard">
                 <Button variant="outline">Back to Dashboard</Button>
@@ -306,92 +316,27 @@ export default function QuizPage() {
             </div>
           </Card>
 
-          {/* Detailed Explanations Cards */}
-          <div className="space-y-4">
-            <h3 className="text-base font-bold font-display text-foreground flex items-center gap-2 px-1">
-              <BookOpen size={16} className="text-primary" />
-              <span>Question-by-Question Review</span>
-            </h3>
+          {/* Detailed Explanations Review */}
+          {attemptDetails?.feedback && (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold font-display text-foreground flex items-center gap-2 px-1">
+                <BookOpen size={16} className="text-primary" />
+                <span>AI Detailed Explanations</span>
+              </h3>
 
-            {QUESTIONS.map((q) => {
-              const userAnswer = answers[q.id];
-              const isCorrect = userAnswer === q.answer;
-              
-              return (
-                <Card key={q.id} isGlass={true} padding="md" className="border-border/50">
-                  <div className="space-y-4">
-                    {/* Header check */}
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <h4 className="text-xs sm:text-sm font-bold text-foreground leading-snug max-w-lg">
-                        {q.id}. {q.question}
-                      </h4>
-                      <span className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-bold border shrink-0 ${
-                        isCorrect
-                          ? 'bg-secondary/10 border-secondary/20 text-secondary'
-                          : 'bg-red-500/10 border-red-500/20 text-red-500'
-                      }`}>
-                        {isCorrect ? (
-                          <>
-                            <CheckCircle2 size={12} /> Correct
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={12} /> Incorrect
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Options list showing selections */}
-                    <div className="grid gap-2 text-xs sm:grid-cols-2">
-                      {q.options.map(opt => {
-                        const isUserSelect = userAnswer === opt.key;
-                        const isCorrectSelect = q.answer === opt.key;
-                        
-                        return (
-                          <div
-                            key={opt.key}
-                            className={`
-                              p-2.5 rounded-xl border text-[11px] flex items-center gap-2
-                              ${isCorrectSelect
-                                ? 'bg-secondary/15 border-secondary/25 text-secondary font-semibold'
-                                : isUserSelect
-                                  ? 'bg-red-500/15 border-red-500/25 text-red-500 font-semibold'
-                                  : 'bg-background/30 border-border/50 text-muted'
-                              }
-                            `}
-                          >
-                            <span className={`w-4.5 h-4.5 rounded border text-[9px] font-bold flex items-center justify-center shrink-0 ${
-                              isCorrectSelect
-                                ? 'bg-secondary text-white border-secondary'
-                                : isUserSelect
-                                  ? 'bg-red-500 text-white border-red-500'
-                                  : 'border-border bg-background'
-                            }`}>
-                              {opt.key}
-                            </span>
-                            <span className="truncate">{opt.text}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* AI Explanation details */}
-                    <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/10 flex gap-2.5">
-                      <Sparkles size={16} className="text-primary shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold text-primary uppercase">AI Explanation</span>
-                        <p className="text-[11px] text-muted leading-relaxed">
-                          {q.explanation}
-                        </p>
-                      </div>
-                    </div>
-
+              <Card isGlass={true} padding="md" className="border-border/50">
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex gap-2.5">
+                  <Sparkles size={16} className="text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-primary uppercase">Tutor Explanations & Review Tips</span>
+                    <p className="text-xs text-foreground/95 leading-relaxed whitespace-pre-line">
+                      {attemptDetails.feedback.explanation}
+                    </p>
                   </div>
-                </Card>
-              );
-            })}
-          </div>
+                </div>
+              </Card>
+            </div>
+          )}
         </div>
       )}
     </div>

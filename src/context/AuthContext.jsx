@@ -84,8 +84,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateUser = (updatedData) => {
-    setUser((prev) => (prev ? { ...prev, ...updatedData } : null));
+  const updateUser = async (updatedData) => {
+    try {
+      const response = await api.patch('/profile', updatedData);
+      if (response.success && response.data) {
+        setUser((prev) => (prev ? { ...prev, ...response.data } : null));
+        return { success: true };
+      }
+    } catch (err) {
+      throw new Error(err.message || 'Failed to update profile details.');
+    }
   };
 
   return (

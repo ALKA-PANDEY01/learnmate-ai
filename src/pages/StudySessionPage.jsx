@@ -10,7 +10,8 @@ import {
   VolumeX,
   Coffee,
   Brain,
-  Award
+  Award,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -19,7 +20,7 @@ import { SEO } from '../components/common/SEO';
 import api from '../services/api';
 
 export default function StudySessionPage() {
-  const { roadmap } = useRoadmap();
+  const { roadmap, refreshRoadmap } = useRoadmap();
   
   // Timer Mode Settings (times in seconds)
   const MODES = {
@@ -32,10 +33,39 @@ export default function StudySessionPage() {
   const [secondsLeft, setSecondsLeft] = useState(MODES.focus.time);
   const [isActive, setIsActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [todayStudyMinutes, setTodayStudyMinutes] = useState(115);
-  const [sessionsCompleted, setSessionsCompleted] = useState(3);
+
+  // Dynamic statistics
+  const [todayStudyMinutes, setTodayStudyMinutes] = useState(0);
+  const [sessionsCompleted, setSessionsCompleted] = useState(0);
+  const [weeklyStudyHours, setWeeklyStudyHours] = useState(0);
+  const [loading, setLoading] = useState(true);
   
   const timerRef = useRef(null);
+
+  const fetchStats = async () => {
+    try {
+      const response = await api.get('/analytics');
+      if (response.success && response.data) {
+        // Today hours is the last element in dailyStudyHours
+        const daily = response.data.dailyStudyHours || [];
+        const todayObj = daily[daily.length - 1];
+        const minutesToday = todayObj ? Math.round(todayObj.hours * 60) : 0;
+        setTodayStudyMinutes(minutesToday);
+        setWeeklyStudyHours(response.data.totalStudyHours);
+
+        // Approximate sessions count
+        setSessionsCompleted(Math.round(minutesToday / 25));
+      }
+    } catch (err) {
+      console.warn("Failed to retrieve timer metrics:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, [roadmap]);
 
   // Sync timer when mode changes
   useEffect(() => {
@@ -95,8 +125,12 @@ export default function StudySessionPage() {
         try {
           await api.post('/study-session', {
             goalId: roadmap.id,
-            duration: 25 // 25 minutes Pomodoro focus duration
+            duration: 25, // 25 minutes Pomodoro focus duration
+            topic: roadmap.goal || 'General Focus'
           });
+          // Refresh global progress to ensure dashboard stats updates instantly
+          await refreshRoadmap();
+          await fetchStats();
         } catch (err) {
           console.error("Failed to log study session to backend database", err.message);
         }
@@ -127,8 +161,19 @@ export default function StudySessionPage() {
 
   // Percentage for progress ring
   const progressPercent = ((MODES[mode].time - secondsLeft) / MODES[mode].time) * 100;
-  const weeklyStudyHours = roadmap ? roadmap.hoursStudied : 14.5;
   const todayHours = (todayStudyMinutes / 60).toFixed(1);
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 pb-12 animate-pulse">
+        <div className="h-8 bg-border/40 w-1/4 rounded-lg" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="h-48 bg-border/30 rounded-2xl" />
+          <div className="md:col-span-2 h-64 bg-border/30 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-10">
@@ -162,7 +207,7 @@ export default function StudySessionPage() {
               <div className="p-3.5 rounded-xl border border-border bg-background/40 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar size={16} className="text-secondary" />
-                  <span className="text-xs text-muted">Weekly Study Hours</span>
+                  <span className="text-xs text-muted">Total Study Hours</span>
                 </div>
                 <span className="text-sm font-bold text-foreground">{weeklyStudyHours} hrs</span>
               </div>

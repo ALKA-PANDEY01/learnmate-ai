@@ -62,6 +62,8 @@ export default function DashboardPage() {
     todaysTasks: [],
     upcomingDeadlines: []
   });
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [quizzesList, setQuizzesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
@@ -69,6 +71,16 @@ export default function DashboardPage() {
       const response = await api.get('/dashboard');
       if (response.success && response.data) {
         setDashboardData(response.data);
+      }
+      
+      const analResponse = await api.get('/analytics');
+      if (analResponse.success && analResponse.data) {
+        setAnalyticsData(analResponse.data);
+      }
+
+      const quizzesRes = await api.get('/quizzes?limit=5');
+      if (quizzesRes.success && quizzesRes.quizzes) {
+        setQuizzesList(quizzesRes.quizzes.reverse());
       }
     } catch (err) {
       console.warn("Failed to load dashboard data from backend", err.message);
@@ -107,31 +119,34 @@ export default function DashboardPage() {
   const totalTasks = dashboardData.completedTasks + dashboardData.remainingTasks;
 
   // Chart 1: Study hours data (using aggregated metrics)
-  const weeklyHoursData = [
-    { day: 'Mon', hours: 1.2 },
-    { day: 'Tue', hours: 0.8 },
-    { day: 'Wed', hours: 1.5 },
-    { day: 'Thu', hours: 2.0 },
-    { day: 'Fri', hours: 0.5 },
-    { day: 'Sat', hours: 1.8 },
-    { day: 'Sun', hours: dashboardData.weeklyHours }
-  ];
+  const weeklyHoursData = analyticsData && analyticsData.dailyStudyHours
+    ? analyticsData.dailyStudyHours.map(d => ({ day: d.day, hours: d.hours }))
+    : [
+        { day: 'Mon', hours: 0 },
+        { day: 'Tue', hours: 0 },
+        { day: 'Wed', hours: 0 },
+        { day: 'Thu', hours: 0 },
+        { day: 'Fri', hours: 0 },
+        { day: 'Sat', hours: 0 },
+        { day: 'Sun', hours: 0 }
+      ];
 
   // Chart 2: Cumulative progress trends
-  const progressOverTimeData = [
-    { name: 'Week 1', progress: Math.min(dashboardData.progress, 20) },
-    { name: 'Week 2', progress: Math.min(dashboardData.progress, 40) },
-    { name: 'Week 3', progress: Math.min(dashboardData.progress, 65) },
-    { name: 'Week 4', progress: dashboardData.progress }
-  ];
+  const progressOverTimeData = analyticsData && analyticsData.weeklyStudyHours
+    ? analyticsData.weeklyStudyHours.map(w => ({ name: w.week, progress: Math.round(w.hours * 10) }))
+    : [
+        { name: 'Week 1', progress: 0 },
+        { name: 'Week 2', progress: 0 },
+        { name: 'Week 3', progress: 0 },
+        { name: 'Week 4', progress: 0 }
+      ];
 
   // Chart 3: Quiz grades trends
-  const quizPerformanceData = [
-    { quiz: 'Quiz 1', score: 75 },
-    { quiz: 'Quiz 2', score: 85 },
-    { quiz: 'Quiz 3', score: 90 },
-    { quiz: 'Quiz 4', score: 82 }
-  ];
+  const quizPerformanceData = quizzesList.length > 0
+    ? quizzesList.map((q, idx) => ({ quiz: `Test ${idx + 1}`, score: q.score }))
+    : [
+        { quiz: 'Test 1', score: 0 }
+      ];
 
   // Chart 4: Pie distribution completed vs pending
   const pieData = [

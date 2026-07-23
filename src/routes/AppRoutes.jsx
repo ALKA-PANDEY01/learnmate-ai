@@ -16,28 +16,10 @@ import SettingsPage from '../pages/SettingsPage';
 import AchievementsPage from '../pages/AchievementsPage';
 import CalendarPage from '../pages/CalendarPage';
 import NotFoundPage from '../pages/NotFoundPage';
+import CoursesPage from '../pages/CoursesPage';
+import FlashcardsPage from '../pages/FlashcardsPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { ProtectedRoute } from './ProtectedRoute';
-
-// Simple placeholder components for other dashboard routes
-
-const CoursesPlaceholder = () => (
-  <div className="glass-card rounded-2xl p-8 border border-border/50 text-center space-y-4">
-    <h2 className="text-2xl font-bold font-display text-foreground">My Courses</h2>
-    <p className="text-sm text-muted max-w-md mx-auto">This page will showcase your active learning paths, registered courses, and completion certificates.</p>
-  </div>
-);
-
-// Tutor placeholder is removed in favor of AIMentorPage
-
-const FlashcardsPlaceholder = () => (
-  <div className="glass-card rounded-2xl p-8 border border-border/50 text-center space-y-4">
-    <h2 className="text-2xl font-bold font-display text-foreground">Flashcard Decks</h2>
-    <p className="text-sm text-muted max-w-md mx-auto">Create and review study decks with spaced repetition algorithms to improve your retention rates.</p>
-  </div>
-);
-
-// Placeholders for analytics, settings, and profile are removed in favor of real pages
 
 export const AppRoutes = () => {
   return (
@@ -68,8 +50,8 @@ export const AppRoutes = () => {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="achievements" element={<AchievementsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
-        <Route path="courses" element={<CoursesPlaceholder />} />
-        <Route path="flashcards" element={<FlashcardsPlaceholder />} />
+        <Route path="courses" element={<CoursesPage />} />
+        <Route path="flashcards" element={<FlashcardsPage />} />
       </Route>
 
       {/* Fallback route */}

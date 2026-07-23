@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Mail,
@@ -11,7 +11,8 @@ import {
   Target,
   Trophy,
   CheckCircle,
-  GraduationCap
+  GraduationCap,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useRoadmap } from '../context/RoadmapContext';
@@ -20,17 +21,44 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { SEO } from '../components/common/SEO';
+import api from '../services/api';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const { roadmap } = useRoadmap();
   
+  const [profileStats, setProfileStats] = useState(null);
+  const [badges, setBadges] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [editError, setEditError] = useState('');
 
-  const handleEditSubmit = (e) => {
+  const loadProfileAndBadges = async () => {
+    try {
+      const statsRes = await api.get('/profile');
+      const badgesRes = await api.get('/achievements');
+
+      if (statsRes.success && statsRes.data) {
+        setProfileStats(statsRes.data.stats);
+      }
+      if (badgesRes.success && badgesRes.achievements) {
+        setBadges(badgesRes.achievements.slice(0, 3));
+      }
+    } catch (err) {
+      console.warn("Failed to load profile details:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfileAndBadges();
+  }, [user]);
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     setEditError('');
 
@@ -40,22 +68,28 @@ export default function ProfilePage() {
     }
 
     try {
-      updateUser({ name: editName.trim(), email: editEmail.trim() });
+      await updateUser({ name: editName.trim(), email: editEmail.trim() });
       setIsEditModalOpen(false);
     } catch (e) {
-      setEditError('Failed to update details. Please try again.');
+      setEditError(e.message || 'Failed to update details. Please try again.');
     }
   };
 
-  const streak = roadmap ? roadmap.streak : 5;
-  const hours = roadmap ? roadmap.hoursStudied : 14.5;
-  const progress = roadmap ? roadmap.progress : 20;
+  const streak = roadmap ? roadmap.streak : 0;
+  const hours = profileStats ? profileStats.totalHoursStudied : 0;
+  const progress = roadmap ? roadmap.progress : 0;
 
-  const mockAchievements = [
-    { title: 'Early Bird', desc: 'Study before 8:00 AM', unlocked: true, icon: '🌅' },
-    { title: 'Deep Focus', desc: 'Complete 4 Pomodoro sessions in a day', unlocked: true, icon: '🧘' },
-    { title: 'Quiz Master', desc: 'Score 90% or higher on any quiz', unlocked: true, icon: '💯' }
-  ];
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-pulse">
+        <div className="h-8 bg-border/40 w-1/4 rounded-lg" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="h-64 bg-border/30 rounded-2xl" />
+          <div className="md:col-span-2 h-64 bg-border/30 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
@@ -99,7 +133,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-center gap-2.5">
                 <Calendar size={14} className="text-primary" />
-                <span>Joined {user?.joinedAt || '2026-01-15'}</span>
+                <span>Joined {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
               </div>
             </div>
 
@@ -130,7 +164,7 @@ export default function ProfilePage() {
                 </h4>
                 {roadmap && (
                   <p className="text-[11px] text-muted">
-                    Deadline: {roadmap.deadline} | style: {roadmap.learningStyle}
+                    Deadline: {new Date(roadmap.deadline).toLocaleDateString()}
                   </p>
                 )}
               </div>
@@ -143,7 +177,7 @@ export default function ProfilePage() {
           {/* Learning Stats Grid */}
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Completed Modules", value: roadmap ? `${progress}%` : "0%", icon: <CheckCircle size={16} />, color: "text-secondary", bg: "bg-secondary/10 border-secondary/20" },
+              { label: "Completed Modules", value: `${progress}%`, icon: <CheckCircle size={16} />, color: "text-secondary", bg: "bg-secondary/10 border-secondary/20" },
               { label: "Hours Studied", value: `${hours} hrs`, icon: <Clock size={16} />, color: "text-primary", bg: "bg-primary/10 border-primary/20" },
               { label: "Current Streak", value: `${streak} Days`, icon: <Flame size={16} className="animate-pulse" />, color: "text-amber-500", bg: "bg-amber-500/10 border-amber-500/20" }
             ].map((stat, idx) => (
@@ -167,20 +201,26 @@ export default function ProfilePage() {
               <CardDescription className="text-xs">Browse some of your recently unlocked study accomplishments.</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                {mockAchievements.map((ach, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl border border-border bg-background/45 flex items-center gap-3 hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-300"
-                  >
-                    <span className="text-2xl select-none">{ach.icon}</span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{ach.title}</p>
-                      <p className="text-[9px] text-muted line-clamp-2 mt-0.5 leading-snug">{ach.desc}</p>
+              {badges.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {badges.map((ach, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl border border-border bg-background/45 flex items-center gap-3 hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-300"
+                    >
+                      <span className="text-2xl select-none">{ach.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{ach.title}</p>
+                        <p className="text-[9px] text-muted line-clamp-2 mt-0.5 leading-snug">{ach.description}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-xs text-muted">
+                  No badges unlocked yet. Keep studying to unlock your first award!
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
