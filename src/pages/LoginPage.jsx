@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card';
 import { SEO } from '../components/common/SEO';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
   const navigate = useNavigate();
@@ -22,6 +22,12 @@ export default function LoginPage() {
 
   // Redirect target
   const from = location.state?.from?.pathname || '/dashboard';
+
+  React.useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate, from]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,6 +48,19 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white shadow-xl shadow-primary/20 animate-bounce">
+          <GraduationCap size={32} />
+        </div>
+        <p className="text-sm font-medium text-muted animate-pulse">
+          Setting up your learning environment...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 relative overflow-hidden transition-colors duration-300">
